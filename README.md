@@ -22,17 +22,32 @@ python wav_converter.py {src} {dst} {ffmpeg bin path}
 
 ## Reports
 
+### Dec 26, 2021
+* 
+
 ### Dec 25, 2021
-![simple_dense_loss_epoch_10](./docs/simple_dense_loss_epoch_10.png)
+* The Music Information Retrieval (MIR) field has always been challenging because there are not a lot of refined dataset constructed. Especially for Music Emotion Recognition (MER) task, to assess the emotion of the song, one has to collect the songs as input (most of them is not possible because of copyright [\[1\]](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392)). According to Aljanaki et. al [\[1\]](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392), the emotion is subjective to human and language and therefore hard to be determined. There are a lot of emotion labeling scheme such as the emotion adjective wording scheme from Lin et. al [\[2\]](https://doi.org/10.1145/2037676.2037683) or the two dimensional regression scheme from the DEAM dataset developed by Aljanaki et. al [\[1\]](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392) which utilize the two orthorgonal psychology states that are discussed by Russel [\[3\]](https://www.researchgate.net/publication/235361517_A_Circumplex_Model_of_Affect). 
+* There are a lot of traditional musical emotion recognition models that utilize sound processing and musical feature detection from the waveform and the spectrogram of the sound such as Improved Back Propagation network [\[4\]](https://www.frontiersin.org/articles/10.3389/fpsyg.2021.760060/full), MIDI notes, melodic, and dynamic features [\[5\]](https://www.semanticscholar.org/paper/Novel-Audio-Features-for-Music-Emotion-Recognition-Panda-Malheiro/6feb6c070313992897140a1802fdb8f0bf129422)
+* As in the beginning of the project, we experiment with most popular method nowaday: deep learning. We want to apply deep learning into assessing the MER task by having the music (and potentially its related standard (Panda et. al [\[5\]](https://www.semanticscholar.org/paper/Novel-Audio-Features-for-Music-Emotion-Recognition-Panda-Malheiro/6feb6c070313992897140a1802fdb8f0bf129422)) and derived features) as input to the deep learning schema, and the annotated valence-arousal point (ranged from 0 to 10) as label.
+* We want to firstly test if the linear dense network to see if they accurately predict the two value valence and arousal. We first preprocess the music audio by performing stft on the waveform to get the time-frequency spectrogram of the sound which is represented by a 3D array \[`time_length`, `n_frequency`, `n_channel`\] (a typical spectrogram of a 45 second music will have the shape (15502, 129, 2)). We then resize such data into the smalller size (i.e, (512, 129, 2)) using bilinear method. We then Flatten the array and feed the vector of 512 * 129 * 2 through 4 linear layers of 512, 256, 128, and 64 neurons with activation of rectified linear unit. The last layer is also a Linear layer that have 2 neurons as output with a rectified linear unit activation. We simplly use the l2 loss to the the distance of the output neurons from the actuall labelled valence and arousal. For optimizer, we use stochastic gradient descent with learning rate of 1e-4. After training the model with batch size 16, step per epoch 100, and 10 epoch, we get the following total loss for batch. So the mean squared error should be `loss` / `batch_size`.
 
-
-
+  ![simple_dense_loss_epoch_10](./docs/simple_dense_loss_epoch_10.png) 
 
 ## Resources
 
 * Database benchmark: 
 
 https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392
+
+```
+@article{AlajankiEmoInMusicAnalysis,
+author = {Alajanki, Anna and Yang, Yi-Hsuan and Soleymani, Mohammad},
+title = {Benchmarking music emotion recognition systems},
+journal = {PLOS ONE},
+year = {2016},
+note= {under review}
+}
+```
 
 https://www.kaggle.com/imsparsh/deam-mediaeval-dataset-emotional-analysis-in-music
 https://cvml.unige.ch/databases/DEAM/
@@ -45,6 +60,12 @@ https://github.com/HuiZhangDB/PMEmo
 
 RAVDESS database: https://zenodo.org/record/1188976
 
+* label scheme:
+
+Lin, Y. C., Yang, Y. H., and Homer, H. (2011). Exploiting online music tags for music emotion classification. ACM Trans. Multimed. Comput. Commun. Appl. 7, 1–16. doi: 10.1145/2037676.2037683
+
+Russell, James. (1980). A Circumplex Model of Affect. Journal of Personality and Social Psychology. 39. 1161-1178. 10.1037/h0077714. 
+
 * Technical: 
 
 https://www.tensorflow.org/io/tutorials/audio
@@ -55,12 +76,11 @@ https://www.tensorflow.org/tutorials/audio/simple_audio
 
 most influlece library mir search: https://www.semanticscholar.org/search?fos%5B0%5D=computer-science&q=Music%20Emotion%20Recognition&sort=influence
 
-https://www.frontiersin.org/articles/10.3389/fpsyg.2021.760060/full
+Audio-based deep music emotion recognition: https://www.semanticscholar.org/paper/Audio-based-deep-music-emotion-recognition-Liu-Han/6c4ed9c7cad950a6398a9caa2debb2dea0d16f73
 
-label scheme: Lin, Y. C., Yang, Y. H., and Homer, H. (2011). Exploiting online music tags for music emotion classification. ACM Trans. Multimed. Comput. Commun. Appl. 7, 1–16. doi: 10.1145/2037676.2037683
+A Novel Music Emotion Recognition Model Using Neural Network Technology: https://www.frontiersin.org/articles/10.3389/fpsyg.2021.760060/full
 
 novel features of music for mer: https://www.semanticscholar.org/paper/Novel-Audio-Features-for-Music-Emotion-Recognition-Panda-Malheiro/6feb6c070313992897140a1802fdb8f0bf129422
-
 
 musical texture and espresitivity features: https://www.semanticscholar.org/paper/Musical-Texture-and-Expressivity-Features-for-Music-Panda-Malheiro/e4693023ae525b7dd1ecabf494654e7632f148b3
 
@@ -79,4 +99,17 @@ Transformer-based: https://paperswithcode.com/paper/transformer-based-approach-t
 
 tutorial ismir: https://arxiv.org/abs/1709.04396
 
-crnn based?
+* DNN-based:
+
+https://www.semanticscholar.org/paper/Music-Emotion-Classification-with-Deep-Neural-Nets-Pandeya-Bhattarai/023f9feb933c6e82ed2e7095c285e203d31241dc
+
+
+* crnn based:
+
+* cnn-based:
+
+https://www.semanticscholar.org/paper/CNN-based-music-emotion-classification-Liu-Chen/63e83168006678410d137315dd3e8488136aed39
+
+https://www.semanticscholar.org/paper/Recognition-of-emotion-in-music-based-on-deep-Sarkar-Choudhury/396fd30fa5d2e8821b9413c5a227ec7c902d5b33
+
+https://www.semanticscholar.org/paper/Music-Emotion-Recognition-by-Using-Chroma-and-Deep-Er-Aydilek/79b35f61ee84f2f7161c98f591b55f0bb31c4d0e
