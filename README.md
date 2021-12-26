@@ -1,5 +1,12 @@
-# MSA
+# Music Emotion Analysis Algorithm using Deep Learning.
+Author: Alex Nguyen. Gettysburg College
 
+`Introduction Here!`
+
+## Project structure
+
+
+## How to run the project
 * convert to wav code: 
 
 ```
@@ -12,6 +19,14 @@ or
 python wav_converter.py {src} {dst} {ffmpeg bin path}
 # E.g: python wav_converter.py "./dataset/DEAM/audio" "./dataset/DEAM/wav" "C:/Users/Alex Nguyen/Documents/ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe"
 ```
+
+## Reports
+
+### Dec 25, 2021
+![simple_dense_loss_epoch_10](./docs/simple_dense_loss_epoch_10.png)
+
+
+
 
 ## Resources
 
