@@ -80,6 +80,14 @@ def load_metadata(csv_folder):
 
   return global_df
 
+def split_train_test(df: pd.DataFrame, train_ratio: float):
+  train_size = int(len(df) * train_ratio)
+  train_df: pd.DataFrame = df[:train_size]
+  train_df = train_df.reset_index(drop=True)
+  test_df: pd.DataFrame = df[train_size:]
+  test_df = test_df.reset_index(drop=True)
+  return train_df, test_df
+
 def plot_and_play(test_audio, second_id = 24.0, second_length = 1, channel = 0):
   """ Plot and play
 

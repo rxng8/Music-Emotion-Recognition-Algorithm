@@ -1,3 +1,5 @@
 **__pycache__/
 dataset/
 .vscode/
+weights/
+history/

@@ -15,7 +15,13 @@ from tensorflow.keras import models
 from IPython import display
 from tensorflow.python.ops.gen_array_ops import shape
 
-from mer.utils import get_spectrogram, plot_spectrogram, load_metadata, plot_and_play, preprocess_waveforms
+from mer.utils import get_spectrogram, \
+  plot_spectrogram, \
+  load_metadata, \
+  plot_and_play, \
+  preprocess_waveforms, \
+  split_train_test
+
 from mer.const import *
 
 # Set the seed value for experiment reproducibility.
@@ -32,8 +38,9 @@ filenames = tf.io.gfile.glob(str(AUDIO_FOLDER) + '/*')
 # Process with average annotation per song. 
 df = load_metadata(ANNOTATION_SONG_LEVEL)
 
-# %%5
+train_df, test_df = split_train_test(df, TRAIN_RATIO)
 
+# %%
 
 test_file = tf.io.read_file(os.path.join(AUDIO_FOLDER, "2011.wav"))
 test_audio, _ = tf.audio.decode_wav(contents=test_file)
@@ -88,10 +95,50 @@ def train_datagen_song_level():
   pointer = 0
   while True:
     # Reset pointer
-    if pointer >= len(df):
+    if pointer >= len(train_df):
       pointer = 0
 
-    row = df.loc[pointer]
+    row = train_df.loc[pointer]
+    song_id = row["song_id"]
+    valence_mean = row["valence_mean"]
+    arousal_mean = row["arousal_mean"]
+    label = tf.convert_to_tensor([valence_mean, arousal_mean], dtype=tf.float32)
+    song_path = os.path.join(AUDIO_FOLDER, str(int(song_id)) + SOUND_EXTENSION)
+    audio_file = tf.io.read_file(song_path)
+    waveforms, _ = tf.audio.decode_wav(contents=audio_file)
+    waveforms = preprocess_waveforms(waveforms, WAVE_ARRAY_LENGTH)
+    # print(waveforms.shape)
+
+    # Work on building spectrogram
+    # Shape (timestep, frequency, n_channel)
+    spectrograms = None
+    # Loop through each channel
+    for i in range(waveforms.shape[-1]):
+      # Shape (timestep, frequency, 1)
+      spectrogram = get_spectrogram(waveforms[..., i], input_len=waveforms.shape[0])
+      if spectrograms == None:
+        spectrograms = spectrogram
+      else:
+        spectrograms = tf.concat([spectrograms, spectrogram], axis=-1)
+    pointer += 1
+
+    padded_spectrogram = np.zeros((SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL), dtype=float)
+    # spectrograms = spectrograms[tf.newaxis, ...]
+    # some spectrogram are not the same shape
+    padded_spectrogram[:spectrograms.shape[0], :spectrograms.shape[1], :] = spectrograms
+    
+    yield (tf.convert_to_tensor(padded_spectrogram), label)
+
+def test_datagen_song_level():
+  """ Predicting valence mean and arousal mean
+  """
+  pointer = 0
+  while True:
+    # Reset pointer
+    if pointer >= len(test_df):
+      pointer = 0
+
+    row = test_df.loc[pointer]
     song_id = row["song_id"]
     valence_mean = row["valence_mean"]
     arousal_mean = row["arousal_mean"]
@@ -135,7 +182,7 @@ train_batch_dataset = train_dataset.batch(BATCH_SIZE)
 train_batch_iter = iter(train_batch_dataset)
 
 test_dataset = tf.data.Dataset.from_generator(
-  train_datagen_song_level,
+  test_datagen_song_level,
   output_signature=(
     tf.TensorSpec(shape=(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL), dtype=tf.float32),
     tf.TensorSpec(shape=(2, ), dtype=tf.float32)
@@ -212,11 +259,16 @@ def train(model,
         save_history=False):
   
   if history_path != None:
-    with open(history_path, "rb") as f:
-      history = np.load(f, allow_pickle=True)
-    epochs_loss, epochs_val_loss = history
-    epochs_loss = epochs_loss.tolist()
-    epochs_val_loss = epochs_val_loss.tolist()
+    # Sometimes, we have not created the files
+    try:
+      with open(history_path, "rb") as f:
+        history = np.load(f, allow_pickle=True)
+      epochs_loss, epochs_val_loss = history
+      epochs_loss = epochs_loss.tolist()
+      epochs_val_loss = epochs_val_loss.tolist()
+    except:
+      epochs_val_loss = []
+      epochs_loss = []
   else:
     epochs_val_loss = []
     epochs_loss = []
@@ -234,7 +286,7 @@ def train(model,
         print(f"Epoch {epoch + 1} - Step {step_pointer + 1} - Loss: {loss}")
         losses.append(loss)
 
-        if step_pointer + 1 % valid_step == 0:
+        if (step_pointer + 1) % valid_step == 0:
           print(
               "Training loss (for one batch) at step %d: %.4f"
               % (step_pointer + 1, float(loss))
@@ -244,8 +296,7 @@ def train(model,
           logits = model(val_batch[0], training=False)
           val_loss = loss_function(val_batch[1], logits)
           print(f"Validation loss: {val_loss}\n-----------------")
-
-        if step_pointer + 1 == steps_per_epoch:
+        if (step_pointer + 1) == steps_per_epoch:
           val_batch = next(test_batch_iter)
           logits = model(val_batch[0], training=False)
           val_loss = loss_function(val_batch[1], logits)
@@ -272,7 +323,8 @@ model = SimpleDenseModel(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL, B
 
 optimizer = tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE)
 
-# %%
+weights_path = "./weights/simple_dense/checkpoint"
+history_path = "./history/simple_dense.npy"
 
 # About 50 epochs with each epoch step 100 will cover the whole training dataset!
 history = train(
@@ -281,11 +333,15 @@ history = train(
   test_batch_iter,
   optimizer,
   simple_mse_loss,
-  epochs=20,
+  epochs=10,
   steps_per_epoch=100, # 1800 // 16
-  valid_step=10,
-  history_path=None,
-  weights_path=None,
-  save_history=False
+  valid_step=25,
+  history_path=history_path,
+  weights_path=weights_path,
+  save_history=True
 )
 
+
+# %%
+
+history[0]
