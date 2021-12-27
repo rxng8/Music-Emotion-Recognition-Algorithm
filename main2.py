@@ -23,7 +23,7 @@ from mer.utils import get_spectrogram, \
 
 from mer.const import *
 from mer.loss import simple_mse_loss
-from mer.model import SimpleDenseModel
+from mer.model import SimpleDenseModel, SimpleConvModel
 
 # Set the seed value for experiment reproducibility.
 # seed = 42
@@ -35,9 +35,6 @@ sd.default.samplerate = DEFAULT_FREQ
 ANNOTATION_SONG_LEVEL = "./dataset/DEAM/annotations/annotations averaged per song/song_level/"
 AUDIO_FOLDER = "./dataset/DEAM/wav"
 filenames = tf.io.gfile.glob(str(AUDIO_FOLDER) + '/*')
-
-weights_path = "./weights/simple_dense/checkpoint"
-history_path = "./history/simple_dense.npy"
 
 # Process with average annotation per song. 
 df = load_metadata(ANNOTATION_SONG_LEVEL)
@@ -217,9 +214,11 @@ def train(model,
     epochs_loss = []
   
   if weights_path != None and os.path.exists(weights_path + ".index"):
-
-    model.load_weights(weights_path)
-    print("Model weights loaded!")
+    try:
+      model.load_weights(weights_path)
+      print("Model weights loaded!")
+    except:
+      print("cannot load weights!")
 
   for epoch in range(epochs):
     losses = []
@@ -265,10 +264,17 @@ def train(model,
 
 # %%
 
-model = SimpleDenseModel(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL, BATCH_SIZE)
-model.build(input_shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL))
-model.model().summary()
+"""################## Training #################"""
 
+weights_path = "./weights/simple_conv/checkpoint"
+history_path = "./history/simple_conv.npy"
+
+# model = SimpleDenseModel(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL, BATCH_SIZE)
+# model.build(input_shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL))
+# model.model().summary()
+
+model = SimpleConvModel(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL, BATCH_SIZE)
+model.model.load_weights(weights_path)
 optimizer = tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE)
 
 # About 50 epochs with each epoch step 100 will cover the whole training dataset!
@@ -310,3 +316,60 @@ plt.show()
 # y.shape
 
 
+# %%
+
+
+
+# model.build(input_shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL))
+# model.summary()
+# %%
+
+model.model.save_weights(weights_path)
+
+
+# %%
+
+
+
+model.model.load_weights(weights_path)
+
+
+# %%
+
+
+def evaluate(df_pointer, model, loss_func):
+  row = test_df.loc[df_pointer]
+  song_id = row["song_id"]
+  valence_mean = row["valence_mean"]
+  arousal_mean = row["arousal_mean"]
+  label = tf.convert_to_tensor([valence_mean, arousal_mean], dtype=tf.float32)
+  print(f"Label: Valence: {valence_mean}, Arousal: {arousal_mean}")
+  song_path = os.path.join(AUDIO_FOLDER, str(int(song_id)) + SOUND_EXTENSION)
+  audio_file = tf.io.read_file(song_path)
+  waveforms, _ = tf.audio.decode_wav(contents=audio_file)
+  waveforms = preprocess_waveforms(waveforms, WAVE_ARRAY_LENGTH)
+  spectrograms = None
+  # Loop through each channel
+  for i in range(waveforms.shape[-1]):
+    # Shape (timestep, frequency, 1)
+    spectrogram = get_spectrogram(waveforms[..., i], input_len=waveforms.shape[0])
+    if spectrograms == None:
+      spectrograms = spectrogram
+    else:
+      spectrograms = tf.concat([spectrograms, spectrogram], axis=-1)
+
+  spectrograms = spectrograms[tf.newaxis, ...]
+
+  ## Eval
+  y_pred = model(spectrograms)[0]
+  print(f"Predicted y_pred value: Valence: {y_pred[0]}, Arousal: {y_pred[1]}")
+
+  loss = loss_func(label[tf.newaxis, ...], y_pred)
+  print(f"Loss: {loss}")
+
+i = 0
+
+# %%
+
+i += 1
+evaluate(i, model, simple_mse_loss)
