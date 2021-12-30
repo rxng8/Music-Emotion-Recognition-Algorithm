@@ -1,4 +1,4 @@
-# Music Emotion Analysis Algorithm using Deep Learning.
+# Music Emotion Recognition Algorithm using Deep Learning.
 Author: Alex Nguyen. Gettysburg College
 
 `Introduction Here!`
