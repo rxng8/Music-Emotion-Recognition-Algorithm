@@ -44,7 +44,7 @@ def plot_spectrogram(spectrogram, ax):
   """ Check out https://www.tensorflow.org/io/tutorials/audio
 
   Args:
-      spectrogram ([type]): [description]
+      spectrogram ([type]): Expect shape (time step, frequency)
       ax (plt.axes[i]): [description]
   """
   if len(spectrogram.shape) > 2:

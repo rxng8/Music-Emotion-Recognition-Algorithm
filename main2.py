@@ -9,10 +9,12 @@ import seaborn as sns
 import tensorflow as tf
 import sounddevice as sd
 import pandas as pd
+import tensorflow.keras.layers as L
 
 from tensorflow.keras import layers
 from tensorflow.keras import models
 from IPython import display
+from tensorflow.python.keras.layers.core import Dropout
 
 from mer.utils import get_spectrogram, \
   plot_spectrogram, \
@@ -22,8 +24,13 @@ from mer.utils import get_spectrogram, \
   split_train_test
 
 from mer.const import *
-from mer.loss import simple_mse_loss
-from mer.model import SimpleDenseModel, SimpleConvModel
+from mer.loss import simple_mse_loss, simple_mae_loss
+from mer.model import SimpleDenseModel, \
+  SimpleConvModel, \
+  ConvBlock, \
+  ConvBlock2,\
+  Simple_CRNN, \
+  Simple_CRNN_2
 
 # Set the seed value for experiment reproducibility.
 # seed = 42
@@ -88,8 +95,8 @@ def train_datagen_song_level():
 
     row = train_df.loc[pointer]
     song_id = row["song_id"]
-    valence_mean = row["valence_mean"]
-    arousal_mean = row["arousal_mean"]
+    valence_mean = float(row["valence_mean"])
+    arousal_mean = float(row["arousal_mean"])
     label = tf.convert_to_tensor([valence_mean, arousal_mean], dtype=tf.float32)
     song_path = os.path.join(AUDIO_FOLDER, str(int(song_id)) + SOUND_EXTENSION)
     audio_file = tf.io.read_file(song_path)
@@ -128,8 +135,8 @@ def test_datagen_song_level():
 
     row = test_df.loc[pointer]
     song_id = row["song_id"]
-    valence_mean = row["valence_mean"]
-    arousal_mean = row["arousal_mean"]
+    valence_mean = float(row["valence_mean"])
+    arousal_mean = float(row["arousal_mean"])
     label = tf.convert_to_tensor([valence_mean, arousal_mean], dtype=tf.float32)
     song_path = os.path.join(AUDIO_FOLDER, str(int(song_id)) + SOUND_EXTENSION)
     audio_file = tf.io.read_file(song_path)
@@ -242,6 +249,7 @@ def train(model,
           val_batch = next(test_batch_iter)
           logits = model(val_batch[0], training=False)
           val_loss = loss_function(val_batch[1], logits)
+          print(f"exmaple logits: {logits}")
           print(f"Validation loss: {val_loss}\n-----------------")
         if (step_pointer + 1) == steps_per_epoch:
           val_batch = next(test_batch_iter)
@@ -266,15 +274,16 @@ def train(model,
 
 """################## Training #################"""
 
-weights_path = "./weights/simple_conv/checkpoint"
-history_path = "./history/simple_conv.npy"
+weights_path = "./weights/simple_crnn_2/checkpoint"
+history_path = "./history/simple_crnn_2.npy"
 
 # model = SimpleDenseModel(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL, BATCH_SIZE)
 # model.build(input_shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL))
 # model.model().summary()
 
-model = SimpleConvModel(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL, BATCH_SIZE)
-model.model.load_weights(weights_path)
+# model = SimpleConvModel(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL, BATCH_SIZE)
+# model.model.load_weights(weights_path)
+
 optimizer = tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE)
 
 # About 50 epochs with each epoch step 100 will cover the whole training dataset!
@@ -283,14 +292,43 @@ history = train(
   train_batch_iter,
   test_batch_iter,
   optimizer,
-  simple_mse_loss,
+  simple_mae_loss,
   epochs=10,
   steps_per_epoch=100, # 1800 // 16
-  valid_step=25,
+  valid_step=20,
   history_path=history_path,
   weights_path=weights_path,
   save_history=True
 )
+
+# %%
+
+### DEBUG ### 
+
+model = Simple_CRNN_2()
+# model.summary()
+sample_input = tf.ones(shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2))
+with tf.device("/CPU:0"):
+  sample_output = model(sample_input, training=False)
+print(sample_output)
+
+# %%
+
+
+
+
+# %%5
+
+
+sample_output.shape
+
+# %%
+
+
+
+
+
+
 
 
 # %%
@@ -302,9 +340,24 @@ with open(history_path, "rb") as f:
 
 e_loss = [k[0] for k in epochs_loss]
 
-plt.plot(np.arange(1,len(e_loss)+ 1), e_loss, label = "train loss")
-plt.plot(np.arange(1,len(epochs_val_loss)+ 1), epochs_val_loss, label = "val loss")
-plt.xlabel("Epoch")
+e_all_loss = []
+
+id = 0
+time_val = []
+for epoch in epochs_loss:
+  for step in epoch:
+    e_all_loss.append(step.numpy())
+    id += 1
+  time_val.append(id)
+
+# %%
+
+plt.plot(np.arange(0, len(e_all_loss), 1), e_all_loss, label = "train loss")
+plt.plot(time_val, epochs_val_loss, label = "val loss")
+
+# plt.plot(np.arange(1,len(e_loss)+ 1), e_loss, label = "train loss")
+# plt.plot(np.arange(1,len(epochs_val_loss)+ 1), epochs_val_loss, label = "val loss")
+plt.xlabel("Step")
 plt.ylabel("Loss")
 plt.legend()
 plt.show()
@@ -324,20 +377,20 @@ plt.show()
 # model.summary()
 # %%
 
-model.model.save_weights(weights_path)
+model.save_weights(weights_path)
 
 
 # %%
 
 
 
-model.model.load_weights(weights_path)
+model.load_weights(weights_path)
 
 
 # %%
 
 
-def evaluate(df_pointer, model, loss_func):
+def evaluate(df_pointer, model, loss_func, play=False):
   row = test_df.loc[df_pointer]
   song_id = row["song_id"]
   valence_mean = row["valence_mean"]
@@ -361,15 +414,136 @@ def evaluate(df_pointer, model, loss_func):
   spectrograms = spectrograms[tf.newaxis, ...]
 
   ## Eval
-  y_pred = model(spectrograms)[0]
+  y_pred = model(spectrograms, training=False)[0]
   print(f"Predicted y_pred value: Valence: {y_pred[0]}, Arousal: {y_pred[1]}")
 
   loss = loss_func(label[tf.newaxis, ...], y_pred)
   print(f"Loss: {loss}")
+
+  if play:
+    plot_and_play(waveforms, 0, 40, 0)
 
 i = 0
 
 # %%
 
 i += 1
-evaluate(i, model, simple_mse_loss)
+evaluate(i, model, simple_mae_loss, play=True)
+
+# %%
+
+####### INTERMEDIARY REPRESENTATION ########
+
+layer_list = [l for l in model.layers]
+debugging_model = tf.keras.Model(inputs=model.inputs, outputs=[l.output for l in layer_list])
+
+# %%
+
+layer_list
+
+# %%
+
+test_id = 234
+row = test_df.loc[test_id]
+song_id = row["song_id"]
+valence_mean = row["valence_mean"]
+arousal_mean = row["arousal_mean"]
+label = tf.convert_to_tensor([valence_mean, arousal_mean], dtype=tf.float32)
+print(f"Label: Valence: {valence_mean}, Arousal: {arousal_mean}")
+song_path = os.path.join(AUDIO_FOLDER, str(int(song_id)) + SOUND_EXTENSION)
+audio_file = tf.io.read_file(song_path)
+waveforms, _ = tf.audio.decode_wav(contents=audio_file)
+waveforms = preprocess_waveforms(waveforms, WAVE_ARRAY_LENGTH)
+spectrograms = None
+# Loop through each channel
+for i in range(waveforms.shape[-1]):
+  # Shape (timestep, frequency, 1)
+  spectrogram = get_spectrogram(waveforms[..., i], input_len=waveforms.shape[0])
+  if spectrograms == None:
+    spectrograms = spectrogram
+  else:
+    spectrograms = tf.concat([spectrograms, spectrogram], axis=-1)
+
+spectrograms = spectrograms[tf.newaxis, ...]
+
+print(label)
+# plot_and_play(waveforms, 0, 40, 0)
+
+## Eval
+y_pred_list = debugging_model(spectrograms, training=False)
+print(f"Predicted y_pred value: Valence: {y_pred_list[-1][0, 0]}, Arousal: {y_pred_list[-1][0, 1]}")
+
+
+# %%
+
+def show_color_mesh(spectrogram):
+  """ Generate color mesh
+
+  Args:
+      spectrogram (2D array): Expect shape (Frequency length, time step)
+  """
+  assert len(spectrogram.shape) == 2
+  log_spec = np.log(spectrogram + np.finfo(float).eps)
+  height = log_spec.shape[0]
+  width = log_spec.shape[1]
+  X = np.linspace(0, np.size(spectrogram), num=width, dtype=int)
+  Y = range(height)
+  plt.pcolormesh(X, Y, log_spec)
+  plt.show()
+
+show_color_mesh(tf.transpose(spectrograms[0, :, :, 0], [1,0]))
+
+
+# %%
+
+f, axarr = plt.subplots(4,4, figsize=(25,15))
+CONVOLUTION_NUMBER_LIST = [0, 4, 7, 23]
+for x, CONVOLUTION_NUMBER in enumerate(CONVOLUTION_NUMBER_LIST):
+  f1 = y_pred_list[4]
+  plot_spectrogram(tf.transpose(f1[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[0,x])
+  axarr[0,x].grid(False)
+  f2 = y_pred_list[6]
+  plot_spectrogram(tf.transpose(f2[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[1,x])
+  axarr[1,x].grid(False)
+  f3 = y_pred_list[10]
+  plot_spectrogram(tf.transpose(f3[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[2,x])
+  axarr[2,x].grid(False)
+  f4 = y_pred_list[22]
+  plot_spectrogram(tf.transpose(f4[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[3,x])
+  axarr[3,x].grid(False)
+
+axarr[0,0].set_ylabel("After convolution layer 1")
+axarr[1,0].set_ylabel("After convolution layer 2")
+axarr[2,0].set_ylabel("After convolution layer 3")
+axarr[3,0].set_ylabel("After convolution layer 7")
+
+axarr[0,0].set_title("convolution number 0")
+axarr[0,1].set_title("convolution number 4")
+axarr[0,2].set_title("convolution number 7")
+axarr[0,3].set_title("convolution number 23")
+
+plt.show()
+
+# %%
+
+
+f4 = y_pred_list[21]
+
+# %%
+
+f4.shape
+
+# %%
+
+f4
+
+# %%
+
+layer_list[-1].weights[0]
+
+# %%
+
+y_pred_list[-1]
+
+# %%
+

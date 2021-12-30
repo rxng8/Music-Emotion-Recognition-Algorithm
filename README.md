@@ -22,6 +22,15 @@ python wav_converter.py {src} {dst} {ffmpeg bin path}
 
 ## Reports
 
+### Dec 30, 2021
+* We tried CRNN Model with shallow bidirectional lstm
+  ![simple_crnn_loss_2_epoch_7](./docs/simple_crnn_2_loss_epoch_7.png)
+  ![inter_rcnn_2](./docs/inter_rcnn_2.png)
+
+### Dec 28, 2021
+* We tried CRNN Model
+  ![simple_crnn_loss_epoch_20](./docs/simple_crnn_loss_epoch_20.png)
+
 ### Dec 26, 2021
 * We tried testing with Simple CNN Model with 5 Convolution Block (each block consists of a convolution layer with filer size (3,3) and leaky relu activation followed by a convolution layer with filer size (1,1) and leaky relu activation). Each double the number of neurons (64, 128, 256, 512, 1024). Here is the training result after 25 epochs:
  ![simple_conv_loss_epoch_20](./docs/simple_conv_loss_epoch_20.png)
@@ -107,6 +116,10 @@ https://www.semanticscholar.org/paper/Music-Emotion-Classification-with-Deep-Neu
 
 
 * crnn based:
+
+Recognizing Song Mood and Theme Using Convolutional Recurrent Neural Networks: https://www.semanticscholar.org/paper/Recognizing-Song-Mood-and-Theme-Using-Convolutional-Mayerl-V%C3%B6tter/5319195f1f7be778a04186bfe4165e3516165a19
+
+Convolutional Recurrent Neural Networks for Music Classification: https://arxiv.org/abs/1609.04243
 
 * cnn-based:
 
