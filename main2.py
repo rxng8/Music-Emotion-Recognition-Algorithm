@@ -25,12 +25,13 @@ from mer.utils import get_spectrogram, \
 
 from mer.const import *
 from mer.loss import simple_mse_loss, simple_mae_loss
-from mer.model import SimpleDenseModel, \
+from mer.model import Simple_CRNN_3, SimpleDenseModel, \
   SimpleConvModel, \
   ConvBlock, \
   ConvBlock2,\
   Simple_CRNN, \
-  Simple_CRNN_2
+  Simple_CRNN_2, \
+  Simple_CRNN_3
 
 # Set the seed value for experiment reproducibility.
 # seed = 42
@@ -274,8 +275,10 @@ def train(model,
 
 """################## Training #################"""
 
-weights_path = "./weights/simple_crnn_2/checkpoint"
-history_path = "./history/simple_crnn_2.npy"
+## Define model first
+
+weights_path = "./weights/simple_crnn_3/checkpoint"
+history_path = "./history/simple_crnn_3.npy"
 
 # model = SimpleDenseModel(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL, BATCH_SIZE)
 # model.build(input_shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL))
@@ -285,6 +288,15 @@ history_path = "./history/simple_crnn_2.npy"
 # model.model.load_weights(weights_path)
 
 optimizer = tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE)
+
+model = Simple_CRNN_3()
+# model.summary()
+sample_input = tf.ones(shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2))
+with tf.device("/CPU:0"):
+  sample_output = model(sample_input, training=False)
+print(sample_output)
+
+# %%
 
 # About 50 epochs with each epoch step 100 will cover the whole training dataset!
 history = train(
@@ -305,12 +317,7 @@ history = train(
 
 ### DEBUG ### 
 
-model = Simple_CRNN_2()
-# model.summary()
-sample_input = tf.ones(shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2))
-with tf.device("/CPU:0"):
-  sample_output = model(sample_input, training=False)
-print(sample_output)
+
 
 # %%
 
@@ -395,7 +402,7 @@ def evaluate(df_pointer, model, loss_func, play=False):
   song_id = row["song_id"]
   valence_mean = row["valence_mean"]
   arousal_mean = row["arousal_mean"]
-  label = tf.convert_to_tensor([valence_mean, arousal_mean], dtype=tf.float32)
+  label = tf.convert_to_tensor([valence_mean, arousal_mean],ml dtype=tf.float32)
   print(f"Label: Valence: {valence_mean}, Arousal: {arousal_mean}")
   song_path = os.path.join(AUDIO_FOLDER, str(int(song_id)) + SOUND_EXTENSION)
   audio_file = tf.io.read_file(song_path)

@@ -249,3 +249,89 @@ def Simple_CRNN_2():
 
   model = tf.keras.Model(inputs=inputs, outputs=out)
   return model
+
+
+def Simple_CRNN_3():
+  """ CRNN that uses GRU
+
+  Args:
+    inputs (tf.Tensor): Expect tensor shape (batch, width, height, channel)
+
+  Returns:
+    [type]: [description]
+  """
+  inputs = L.Input(shape=(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2))
+  tensor = L.Permute((2, 1, 3))(inputs)
+  tensor = L.Resizing(FREQUENCY_LENGTH, 1024)(tensor)
+  
+  tensor = L.Conv2D(64, (5,5), padding="valid")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.Conv2D(64 // 2, (1,1), padding="valid")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  tensor = L.Dropout(0.1)(tensor)
+
+  tensor = L.Conv2D(128, (5,5), padding="valid")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.Conv2D(128 // 2, (1,1), padding="valid")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  tensor = L.Dropout(0.1)(tensor)
+
+  tensor = L.Conv2D(256, (5,5), padding="valid")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.Conv2D(256 // 2, (1,1), padding="valid")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  tensor = L.Dropout(0.1)(tensor)
+
+  tensor = L.Conv2D(512, (5,5), padding="valid")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.Conv2D(512 // 2, (1,1), padding="valid")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  tensor = L.Dropout(0.1)(tensor)
+
+  tensor = L.Permute((2, 1, 3))(tensor)
+  tensor = L.Reshape((60, 4 * 256))(tensor)
+
+  # tensor = L.MaxPool2D(pool_size=(2,1), strides=(2,1))(tensor)
+  # tensor = L.Conv2D(512, (2,2), padding="valid")(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  # out = L.Dropout(0.1)(tensor)
+
+  tensor = L.GRU(256, activation="tanh", return_sequences=True)(tensor)
+  tensor = L.GRU(128, activation="tanh", return_sequences=True)(tensor)
+  tensor = L.GRU(64, activation="tanh")(tensor)
+  tensor = L.Dense(512, activation="relu")(tensor)
+  tensor = L.Dense(256, activation="relu")(tensor)
+  tensor = L.Dense(64, activation="relu")(tensor)
+  out = L.Dense(2, activation="relu")(tensor)
+
+  # tensor_1 = L.Bidirectional(L.LSTM(128, return_sequences=True))(tensor)
+  # tensor_1 = L.Bidirectional(L.LSTM(128, return_sequences=True))(tensor_1)
+  # tensor_1 = L.Bidirectional(L.LSTM(128))(tensor_1)
+  # tensor_1 = L.Dense(512, activation="relu")(tensor_1)
+  # tensor_1 = L.Dense(256, activation="relu")(tensor_1)
+  # tensor_1 = L.Dense(64, activation="relu")(tensor_1)
+  # out_1 = L.Dense(1, activation="relu")(tensor_1)
+
+  # tensor_2 = L.Bidirectional(L.LSTM(128, return_sequences=True))(tensor)
+  # tensor_2 = L.Bidirectional(L.LSTM(128, return_sequences=True))(tensor_2)
+  # tensor_2 = L.Bidirectional(L.LSTM(128))(tensor_2)
+  # tensor_2 = L.Dense(512, activation="relu")(tensor_2)
+  # tensor_2 = L.Dense(256, activation="relu")(tensor_2)
+  # tensor_2 = L.Dense(64, activation="relu")(tensor_2)
+  # out_2 = L.Dense(1, activation="relu")(tensor_2)
+  
+
+  model = tf.keras.Model(inputs=inputs, outputs=out)
+  return model

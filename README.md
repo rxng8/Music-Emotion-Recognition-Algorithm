@@ -22,13 +22,20 @@ python wav_converter.py {src} {dst} {ffmpeg bin path}
 
 ## Reports
 
+### Dec 31, 2021
+* We tried CRNN Model with deep gru (3 layer of gru)
+
+  ![simple_crnn_3_loss_epoch_10](./docs/simple_crnn_3_loss_epoch_10.png)
+
 ### Dec 30, 2021
 * We tried CRNN Model with shallow bidirectional lstm
+
   ![simple_crnn_loss_2_epoch_7](./docs/simple_crnn_2_loss_epoch_7.png)
   ![inter_rcnn_2](./docs/inter_rcnn_2.png)
 
 ### Dec 28, 2021
 * We tried CRNN Model
+
   ![simple_crnn_loss_epoch_20](./docs/simple_crnn_loss_epoch_20.png)
 
 ### Dec 26, 2021
@@ -128,3 +135,7 @@ https://www.semanticscholar.org/paper/CNN-based-music-emotion-classification-Liu
 https://www.semanticscholar.org/paper/Recognition-of-emotion-in-music-based-on-deep-Sarkar-Choudhury/396fd30fa5d2e8821b9413c5a227ec7c902d5b33
 
 https://www.semanticscholar.org/paper/Music-Emotion-Recognition-by-Using-Chroma-and-Deep-Er-Aydilek/79b35f61ee84f2f7161c98f591b55f0bb31c4d0e
+
+* Attention:
+
+Emotion and Themes Recognition in Music with Convolutional and Recurrent Attention-Blocks: https://www.semanticscholar.org/paper/Emotion-and-Themes-Recognition-in-Music-with-and-Gerczuk-Amiriparian/50e46f65dc0dd2d09bb5a08c0fe4872bbe5a2810
