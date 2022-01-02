@@ -112,6 +112,7 @@ def train_datagen_song_level():
     for i in range(waveforms.shape[-1]):
       # Shape (timestep, frequency, 1)
       spectrogram = get_spectrogram(waveforms[..., i], input_len=waveforms.shape[0])
+      # spectrogram = tf.convert_to_tensor(np.log(spectrogram.numpy() + np.finfo(float).eps))
       if spectrograms == None:
         spectrograms = spectrogram
       else:
@@ -152,6 +153,7 @@ def test_datagen_song_level():
     for i in range(waveforms.shape[-1]):
       # Shape (timestep, frequency, 1)
       spectrogram = get_spectrogram(waveforms[..., i], input_len=waveforms.shape[0])
+      # spectrogram = tf.convert_to_tensor(np.log(spectrogram.numpy() + np.finfo(float).eps))
       if spectrograms == None:
         spectrograms = spectrogram
       else:
@@ -173,7 +175,19 @@ train_dataset = tf.data.Dataset.from_generator(
   )
 )
 train_batch_dataset = train_dataset.batch(BATCH_SIZE)
+train_batch_dataset = train_batch_dataset.cache().prefetch(tf.data.AUTOTUNE)
 train_batch_iter = iter(train_batch_dataset)
+
+
+# Comment out to decide to create a normalization layer.
+# NOTE: this is every time consuming because it looks at all the data, only 
+# use this at the first time.
+# NOTE: Normally, we create this layer once, save it somewhere to reuse in
+# every other model.
+#
+# norm_layer = L.Normalization()
+# norm_layer.adapt(data=train_dataset.map(map_func=lambda spec, label: spec))
+#
 
 test_dataset = tf.data.Dataset.from_generator(
   test_datagen_song_level,
@@ -183,7 +197,29 @@ test_dataset = tf.data.Dataset.from_generator(
   )
 )
 test_batch_dataset = test_dataset.batch(BATCH_SIZE)
+test_batch_dataset = test_batch_dataset.cache().prefetch(tf.data.AUTOTUNE)
 test_batch_iter = iter(test_batch_dataset)
+
+# ds = iter(train_dataset)
+# i, o = next(ds)
+# log_spec = np.log(i + np.finfo(float).eps)
+
+# print(tf.reduce_max(i))
+# print(tf.reduce_min(i))
+# print(tf.reduce_mean(i))
+
+# print(tf.reduce_max(log_spec))
+# print(tf.reduce_min(log_spec))
+# print(tf.reduce_mean(log_spec))
+
+# ii = tf.transpose(i[..., 0], [1,0])
+# height = ii.shape[0]
+# width = ii.shape[1]
+# X = np.linspace(0, np.size(ii), num=width, dtype=int)
+# Y = range(height)
+# plt.pcolormesh(X, Y, ii)
+# plt.show()
+
 
 # %%
 
@@ -277,8 +313,8 @@ def train(model,
 
 ## Define model first
 
-weights_path = "./weights/simple_crnn_3/checkpoint"
-history_path = "./history/simple_crnn_3.npy"
+weights_path = "./weights/cbam_1/checkpoint"
+history_path = "./history/cbam_1.npy"
 
 # model = SimpleDenseModel(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL, BATCH_SIZE)
 # model.build(input_shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL))
@@ -288,6 +324,8 @@ history_path = "./history/simple_crnn_3.npy"
 # model.model.load_weights(weights_path)
 
 optimizer = tf.keras.optimizers.SGD(learning_rate=LEARNING_RATE)
+
+# %%
 
 model = Simple_CRNN_3()
 # model.summary()
@@ -313,9 +351,213 @@ history = train(
   save_history=True
 )
 
+
 # %%
 
-### DEBUG ### 
+### MODEL DEBUGGING ###
+
+def base_cnn():
+  """ Base CNN Feature extractor for 45 second spectrogram
+    Input to model shape: (SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2)
+    Output of the model shape: (4, 60, 256) 
+      (Convolved frequency, convolved timestep, feature neurons)
+  Returns:
+    tf.keras.Model: Return a model
+  """
+
+  inputs = L.Input(shape=(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2))
+  
+  tensor = L.Permute((2, 1, 3))(inputs)
+  tensor = L.Resizing(FREQUENCY_LENGTH, 1024)(tensor)
+  
+  tensor = L.Conv2D(64, (5,5), padding="valid", name="conv_1_1")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.Conv2D(64 // 2, (1,1), padding="valid", name="conv_1_2")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  tensor = L.Dropout(0.1)(tensor)
+
+  tensor = L.Conv2D(128, (5,5), padding="valid", name="conv_2_1")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.Conv2D(128 // 2, (1,1), padding="valid", name="conv_2_2")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  tensor = L.Dropout(0.1)(tensor)
+
+  tensor = L.Conv2D(256, (5,5), padding="valid", name="conv_3_1")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.Conv2D(256 // 2, (1,1), padding="valid", name="conv_3_2")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  tensor = L.Dropout(0.1)(tensor)
+
+  tensor = L.Conv2D(512, (5,5), padding="valid", name="conv_4_1")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.Conv2D(512 // 2, (1,1), padding="valid", name="conv_4_2")(tensor)
+  tensor = L.ReLU()(tensor)
+  # tensor = L.LeakyReLU(alpha=0.1)(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  out = L.Dropout(0.1)(tensor)
+  model = tf.keras.Model(inputs=inputs, outputs=out, name="base_model")
+  return model
+
+class ChannelAttention(tf.keras.layers.Layer):
+  def __init__(self, neuron: int, ratio: int, **kwargs) -> None:
+    super().__init__(**kwargs)
+    self.neuron = neuron
+    self.ratio = ratio
+
+  def build(self, input_shape):
+    """build layers
+
+    Args:
+      input_shape (tf.shape): the shape of the input
+
+    Returns:
+      [type]: [description]
+    """
+    assert len(input_shape) == 4, "The input shape to the layer has to be 3D"
+    self.first_shared_layer = L.Dense(self.neuron // self.ratio, activation="relu")
+    self.second_shared_layer = L.Dense(self.neuron, activation="relu")
+
+  def call(self, inputs):
+    avg_pool_tensor = L.GlobalAveragePooling2D()(inputs) # Shape (batch, filters)
+    avg_pool_tensor = L.Reshape((1,1,-1))(avg_pool_tensor) # Shape (batch, 1, 1, filters)
+    avg_pool_tensor = self.first_shared_layer(avg_pool_tensor)
+    avg_pool_tensor = self.second_shared_layer(avg_pool_tensor)
+
+    max_pool_tensor = L.GlobalMaxPool2D()(inputs) # Shape (batch, filters)
+    max_pool_tensor = L.Reshape((1,1,-1))(max_pool_tensor) # Shape (batch, 1, 1, filters)
+    max_pool_tensor = self.first_shared_layer(max_pool_tensor)
+    max_pool_tensor = self.second_shared_layer(max_pool_tensor)
+
+    attention_tensor = L.Add()([avg_pool_tensor, max_pool_tensor])
+    attention_tensor = L.Activation("sigmoid")(attention_tensor)
+
+    out = L.Multiply()([inputs, attention_tensor]) # Broadcast element-wise multiply. (batch, height, width, filters) x (batch, 1, 1, neurons) 
+
+    return out
+
+class SpatialAttention(tf.keras.layers.Layer):
+  def __init__(self, kernel_size, **kwargs) -> None:
+    super().__init__(**kwargs)
+    self.kernel_size = kernel_size
+
+  def build(self, input_shape):
+    """build layers
+
+    Args:
+      input_shape (tf.shape): the shape of the input
+
+    Returns:
+      [type]: [description]
+    """
+    assert len(input_shape) == 4, "The input shape to the layer has to be 3D"
+    self.conv_layer = L.Conv2D(1, self.kernel_size, padding="same", activation="relu",
+      kernel_initializer="he_normal")
+
+  def call(self, inputs):
+    
+    avg_pool_tensor = L.Lambda(lambda x: tf.reduce_mean(x, axis=-1, keepdims=True))(inputs)
+    max_pool_tensor = L.Lambda(lambda x: tf.reduce_max(x, axis=-1, keepdims=True))(inputs)
+    concat_tensor = L.Concatenate(axis=-1)([avg_pool_tensor, max_pool_tensor])
+    tensor = self.conv_layer(concat_tensor) # shape (height, width, 1)
+    out = L.Multiply()([inputs, tensor]) # Broadcast element-wise multiply. (batch, height, width, neurons) x (batch, height, width, 1) 
+
+    return out
+
+class CBAM_Block(tf.keras.layers.Layer):
+  """ TODO: Implement Res Block architecture for CBAM Block
+
+  Args:
+      tf ([type]): [description]
+  """
+  def __init__(self,
+      channel_attention_filters, 
+      channel_attention_ratio, 
+      spatial_attention_kernel_size, 
+      **kwargs) -> None:
+    super().__init__(**kwargs)
+    self.channel_attention_filters = channel_attention_filters
+    self.channel_attention_ratio = channel_attention_ratio
+    self.spatial_attention_kernel_size = spatial_attention_kernel_size
+  
+  def build(self, input_shape):
+    assert len(input_shape) == 4, "The shape must be 3D!"
+
+    # NOTE: The reson why self.channel_attention_filters is put here is because the number
+    # of neurons of the input to channel attention has to be equal the number of filters
+    # in the channel attention
+    self.conv_1 = L.Conv2D(self.channel_attention_filters * 2, (5,5), padding="same", activation="relu")
+    self.conv_2 = L.Conv2D(self.channel_attention_filters, (1,1), padding="same", activation="relu")
+
+  def call(self, inputs):
+    # inputs shape (batch, height, width, channel)
+    tensor = self.conv_1(inputs) # shape (batch, height, width, filters * 2)
+    tensor = self.conv_2(tensor) # shape (batch, height, width, filters)
+    tensor = ChannelAttention(self.channel_attention_filters, self.channel_attention_ratio)(tensor) # shape (batch, height, width, filters)
+    tensor = SpatialAttention(self.spatial_attention_kernel_size)(tensor) # shape (batch, height, width, filters)
+    return tensor
+
+def cbam_1():
+
+  inputs = L.Input(shape=(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2))
+  tensor = L.Permute((2, 1, 3))(inputs)
+  tensor = L.Resizing(FREQUENCY_LENGTH, 1024)(tensor)
+
+  tensor = CBAM_Block(32, 2, (5,5))(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+
+  tensor = CBAM_Block(64, 2, (7,7))(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  # tensor = L.BatchNormalization()(tensor)
+  # tensor = L.Dropout(0.1)(tensor)
+
+  tensor = CBAM_Block(128, 2, (7,7))(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  # tensor = L.BatchNormalization()(tensor)
+  # tensor = L.Dropout(0.1)(tensor)
+  
+  tensor = CBAM_Block(256, 2, (7,7))(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  # tensor = L.BatchNormalization()(tensor)
+  # tensor = L.Dropout(0.1)(tensor)
+
+  tensor = CBAM_Block(512, 2, (7,7))(tensor)
+  tensor = L.MaxPool2D(2,2)(tensor)
+  # tensor = L.BatchNormalization()(tensor)
+  # tensor = L.Dropout(0.1)(tensor)
+
+  tensor = L.Permute((2, 1, 3))(tensor)
+  tensor = L.Reshape((32, 4 * 512))(tensor)
+
+  tensor = L.GRU(256, activation="tanh", return_sequences=True)(tensor)
+  tensor = L.GRU(128, activation="tanh", return_sequences=True)(tensor)
+  tensor = L.GRU(64, activation="tanh")(tensor)
+  tensor = L.Dense(512, activation="relu")(tensor)
+  tensor = L.Dense(256, activation="relu")(tensor)
+  tensor = L.Dense(64, activation="relu")(tensor)
+  out = L.Dense(2, activation="relu")(tensor)
+
+  model = tf.keras.Model(inputs=inputs, outputs=out)
+  return model
+
+model = cbam_1()
+model.summary()
+sample_input = tf.ones(shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2))
+with tf.device("/CPU:0"):
+  sample_output = model(sample_input, training=False)
+print(sample_output.shape)
+
+# TODO: Code the CBAM architecture
+# TODO: Code the attetion after the CBAM
 
 
 
@@ -402,7 +644,7 @@ def evaluate(df_pointer, model, loss_func, play=False):
   song_id = row["song_id"]
   valence_mean = row["valence_mean"]
   arousal_mean = row["arousal_mean"]
-  label = tf.convert_to_tensor([valence_mean, arousal_mean],ml dtype=tf.float32)
+  label = tf.convert_to_tensor([valence_mean, arousal_mean], dtype=tf.float32)
   print(f"Label: Valence: {valence_mean}, Arousal: {arousal_mean}")
   song_path = os.path.join(AUDIO_FOLDER, str(int(song_id)) + SOUND_EXTENSION)
   audio_file = tf.io.read_file(song_path)
@@ -435,7 +677,7 @@ i = 0
 # %%
 
 i += 1
-evaluate(i, model, simple_mae_loss, play=True)
+evaluate(i, model, simple_mae_loss, play=False)
 
 # %%
 
@@ -450,7 +692,7 @@ layer_list
 
 # %%
 
-test_id = 234
+test_id = 235
 row = test_df.loc[test_id]
 song_id = row["song_id"]
 valence_mean = row["valence_mean"]
@@ -504,18 +746,18 @@ show_color_mesh(tf.transpose(spectrograms[0, :, :, 0], [1,0]))
 # %%
 
 f, axarr = plt.subplots(4,4, figsize=(25,15))
-CONVOLUTION_NUMBER_LIST = [0, 4, 7, 23]
+CONVOLUTION_NUMBER_LIST = [0, 5, 8, 31]
 for x, CONVOLUTION_NUMBER in enumerate(CONVOLUTION_NUMBER_LIST):
-  f1 = y_pred_list[4]
+  f1 = y_pred_list[3]
   plot_spectrogram(tf.transpose(f1[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[0,x])
   axarr[0,x].grid(False)
-  f2 = y_pred_list[6]
+  f2 = y_pred_list[4]
   plot_spectrogram(tf.transpose(f2[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[1,x])
   axarr[1,x].grid(False)
-  f3 = y_pred_list[10]
+  f3 = y_pred_list[5]
   plot_spectrogram(tf.transpose(f3[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[2,x])
   axarr[2,x].grid(False)
-  f4 = y_pred_list[22]
+  f4 = y_pred_list[6]
   plot_spectrogram(tf.transpose(f4[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[3,x])
   axarr[3,x].grid(False)
 

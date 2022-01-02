@@ -90,6 +90,11 @@ https://www.tensorflow.org/io/tutorials/audio
 https://librosa.org/
 https://www.tensorflow.org/tutorials/audio/simple_audio
 
+Visual attention: https://www.youtube.com/watch?v=1mjI_Jm4W1E
+Visual attention notebook: https://github.com/EscVM/EscVM_YT/blob/master/Notebooks/0%20-%20TF2.X%20Tutorials/tf_2_visual_attention.ipynb
+
+YAMNet: https://github.com/tensorflow/models/blob/master/research/audioset/yamnet/yamnet.py
+
 * Related work and works
 
 most influlece library mir search: https://www.semanticscholar.org/search?fos%5B0%5D=computer-science&q=Music%20Emotion%20Recognition&sort=influence
@@ -139,3 +144,5 @@ https://www.semanticscholar.org/paper/Music-Emotion-Recognition-by-Using-Chroma-
 * Attention:
 
 Emotion and Themes Recognition in Music with Convolutional and Recurrent Attention-Blocks: https://www.semanticscholar.org/paper/Emotion-and-Themes-Recognition-in-Music-with-and-Gerczuk-Amiriparian/50e46f65dc0dd2d09bb5a08c0fe4872bbe5a2810
+
+CBAM: https://arxiv.org/abs/1807.06521
