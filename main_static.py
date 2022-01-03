@@ -1,3 +1,8 @@
+"""
+  file: main_static.py
+  author: Alex Nguyen
+  This file contains code to process the whole song labeled data (statically labeled)
+"""
 # %%
 
 import os
@@ -175,7 +180,7 @@ train_dataset = tf.data.Dataset.from_generator(
   )
 )
 train_batch_dataset = train_dataset.batch(BATCH_SIZE)
-train_batch_dataset = train_batch_dataset.cache().prefetch(tf.data.AUTOTUNE)
+# train_batch_dataset = train_batch_dataset.cache().prefetch(tf.data.AUTOTUNE) # OOM error
 train_batch_iter = iter(train_batch_dataset)
 
 
@@ -197,7 +202,7 @@ test_dataset = tf.data.Dataset.from_generator(
   )
 )
 test_batch_dataset = test_dataset.batch(BATCH_SIZE)
-test_batch_dataset = test_batch_dataset.cache().prefetch(tf.data.AUTOTUNE)
+# test_batch_dataset = test_batch_dataset.cache().prefetch(tf.data.AUTOTUNE) # OOM error
 test_batch_iter = iter(test_batch_dataset)
 
 # ds = iter(train_dataset)
@@ -313,8 +318,8 @@ def train(model,
 
 ## Define model first
 
-weights_path = "./weights/cbam_1/checkpoint"
-history_path = "./history/cbam_1.npy"
+weights_path = "./weights/cbam_2/checkpoint"
+history_path = "./history/cbam_2.npy"
 
 # model = SimpleDenseModel(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL, BATCH_SIZE)
 # model.build(input_shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, N_CHANNEL))
@@ -343,7 +348,7 @@ history = train(
   test_batch_iter,
   optimizer,
   simple_mae_loss,
-  epochs=10,
+  epochs=2,
   steps_per_epoch=100, # 1800 // 16
   valid_step=20,
   history_path=history_path,
@@ -409,10 +414,11 @@ def base_cnn():
   return model
 
 class ChannelAttention(tf.keras.layers.Layer):
-  def __init__(self, neuron: int, ratio: int, **kwargs) -> None:
+  def __init__(self, neuron: int, ratio: int, use_average=True, **kwargs) -> None:
     super().__init__(**kwargs)
     self.neuron = neuron
     self.ratio = ratio
+    self.use_average = use_average
 
   def build(self, input_shape):
     """build layers
@@ -424,31 +430,41 @@ class ChannelAttention(tf.keras.layers.Layer):
       [type]: [description]
     """
     assert len(input_shape) == 4, "The input shape to the layer has to be 3D"
-    self.first_shared_layer = L.Dense(self.neuron // self.ratio, activation="relu")
-    self.second_shared_layer = L.Dense(self.neuron, activation="relu")
+    self.first_shared_layer = L.Dense(self.neuron // self.ratio, activation="relu", kernel_initializer="he_normal")
+    self.second_shared_layer = L.Dense(self.neuron, activation="relu", kernel_initializer="he_normal")
 
   def call(self, inputs):
-    avg_pool_tensor = L.GlobalAveragePooling2D()(inputs) # Shape (batch, filters)
-    avg_pool_tensor = L.Reshape((1,1,-1))(avg_pool_tensor) # Shape (batch, 1, 1, filters)
-    avg_pool_tensor = self.first_shared_layer(avg_pool_tensor)
-    avg_pool_tensor = self.second_shared_layer(avg_pool_tensor)
+    if self.use_average:
+      avg_pool_tensor = L.GlobalAveragePooling2D()(inputs) # Shape (batch, filters)
+      avg_pool_tensor = L.Reshape((1,1,-1))(avg_pool_tensor) # Shape (batch, 1, 1, filters)
+      avg_pool_tensor = self.first_shared_layer(avg_pool_tensor)
+      avg_pool_tensor = self.second_shared_layer(avg_pool_tensor)
 
-    max_pool_tensor = L.GlobalMaxPool2D()(inputs) # Shape (batch, filters)
-    max_pool_tensor = L.Reshape((1,1,-1))(max_pool_tensor) # Shape (batch, 1, 1, filters)
-    max_pool_tensor = self.first_shared_layer(max_pool_tensor)
-    max_pool_tensor = self.second_shared_layer(max_pool_tensor)
+      max_pool_tensor = L.GlobalMaxPool2D()(inputs) # Shape (batch, filters)
+      max_pool_tensor = L.Reshape((1,1,-1))(max_pool_tensor) # Shape (batch, 1, 1, filters)
+      max_pool_tensor = self.first_shared_layer(max_pool_tensor)
+      max_pool_tensor = self.second_shared_layer(max_pool_tensor)
 
-    attention_tensor = L.Add()([avg_pool_tensor, max_pool_tensor])
-    attention_tensor = L.Activation("sigmoid")(attention_tensor)
+      attention_tensor = L.Add()([avg_pool_tensor, max_pool_tensor])
+      attention_tensor = L.Activation("sigmoid")(attention_tensor)
 
-    out = L.Multiply()([inputs, attention_tensor]) # Broadcast element-wise multiply. (batch, height, width, filters) x (batch, 1, 1, neurons) 
+      out = L.Multiply()([inputs, attention_tensor]) # Broadcast element-wise multiply. (batch, height, width, filters) x (batch, 1, 1, neurons) 
 
-    return out
+      return out
+    else:
+      max_pool_tensor = L.GlobalMaxPool2D()(inputs) # Shape (batch, filters)
+      max_pool_tensor = L.Reshape((1,1,-1))(max_pool_tensor) # Shape (batch, 1, 1, filters)
+      max_pool_tensor = self.first_shared_layer(max_pool_tensor)
+      max_pool_tensor = self.second_shared_layer(max_pool_tensor)
+      attention_tensor = L.Activation("sigmoid")(max_pool_tensor)
+      out = L.Multiply()([inputs, attention_tensor])
+      return out
 
 class SpatialAttention(tf.keras.layers.Layer):
-  def __init__(self, kernel_size, **kwargs) -> None:
+  def __init__(self, kernel_size, use_average=True, **kwargs) -> None:
     super().__init__(**kwargs)
     self.kernel_size = kernel_size
+    self.use_average = use_average
 
   def build(self, input_shape):
     """build layers
@@ -464,14 +480,20 @@ class SpatialAttention(tf.keras.layers.Layer):
       kernel_initializer="he_normal")
 
   def call(self, inputs):
-    
-    avg_pool_tensor = L.Lambda(lambda x: tf.reduce_mean(x, axis=-1, keepdims=True))(inputs)
-    max_pool_tensor = L.Lambda(lambda x: tf.reduce_max(x, axis=-1, keepdims=True))(inputs)
-    concat_tensor = L.Concatenate(axis=-1)([avg_pool_tensor, max_pool_tensor])
-    tensor = self.conv_layer(concat_tensor) # shape (height, width, 1)
-    out = L.Multiply()([inputs, tensor]) # Broadcast element-wise multiply. (batch, height, width, neurons) x (batch, height, width, 1) 
+    if self.use_average:
+      avg_pool_tensor = L.Lambda(lambda x: tf.reduce_mean(x, axis=-1, keepdims=True))(inputs)
+      max_pool_tensor = L.Lambda(lambda x: tf.reduce_max(x, axis=-1, keepdims=True))(inputs)
+      concat_tensor = L.Concatenate(axis=-1)([avg_pool_tensor, max_pool_tensor])
+      tensor = self.conv_layer(concat_tensor) # shape (height, width, 1)
+      out = L.Multiply()([inputs, tensor]) # Broadcast element-wise multiply. (batch, height, width, neurons) x (batch, height, width, 1) 
 
-    return out
+      return out
+    else:
+      max_pool_tensor = L.Lambda(lambda x: tf.reduce_max(x, axis=-1, keepdims=True))(inputs)
+      tensor = self.conv_layer(max_pool_tensor) # shape (height, width, 1)
+      out = L.Multiply()([inputs, tensor]) # Broadcast element-wise multiply. (batch, height, width, neurons) x (batch, height, width, 1) 
+
+      return out
 
 class CBAM_Block(tf.keras.layers.Layer):
   """ TODO: Implement Res Block architecture for CBAM Block
@@ -497,13 +519,15 @@ class CBAM_Block(tf.keras.layers.Layer):
     # in the channel attention
     self.conv_1 = L.Conv2D(self.channel_attention_filters * 2, (5,5), padding="same", activation="relu")
     self.conv_2 = L.Conv2D(self.channel_attention_filters, (1,1), padding="same", activation="relu")
+    self.c_att = ChannelAttention(self.channel_attention_filters, self.channel_attention_ratio)
+    self.s_att = SpatialAttention(self.spatial_attention_kernel_size)
 
   def call(self, inputs):
     # inputs shape (batch, height, width, channel)
     tensor = self.conv_1(inputs) # shape (batch, height, width, filters * 2)
     tensor = self.conv_2(tensor) # shape (batch, height, width, filters)
-    tensor = ChannelAttention(self.channel_attention_filters, self.channel_attention_ratio)(tensor) # shape (batch, height, width, filters)
-    tensor = SpatialAttention(self.spatial_attention_kernel_size)(tensor) # shape (batch, height, width, filters)
+    tensor = self.c_att(tensor) # shape (batch, height, width, filters)
+    tensor = self.s_att(tensor) # shape (batch, height, width, filters)
     return tensor
 
 def cbam_1():
@@ -512,34 +536,59 @@ def cbam_1():
   tensor = L.Permute((2, 1, 3))(inputs)
   tensor = L.Resizing(FREQUENCY_LENGTH, 1024)(tensor)
 
-  tensor = CBAM_Block(32, 2, (5,5))(tensor)
+  # tensor = CBAM_Block(32, 2, (5,5))(tensor)
+  tensor = L.Conv2D(64, (5,5), padding="same", activation="relu")(tensor)
+  tensor = L.Conv2D(32, (1,1), padding="same", activation="relu")(tensor)
+  tensor_att_1 = ChannelAttention(32, 2)(tensor)
+  tensor_att_1 = SpatialAttention((5,5))(tensor_att_1)
+  tensor = L.Add()([tensor, tensor_att_1])
   tensor = L.MaxPool2D(2,2)(tensor)
 
-  tensor = CBAM_Block(64, 2, (7,7))(tensor)
+  # tensor = CBAM_Block(64, 2, (7,7))(tensor)
+  tensor = L.Conv2D(128, (5,5), padding="same", activation="relu")(tensor)
+  tensor = L.Conv2D(64, (1,1), padding="same", activation="relu")(tensor)
+  tensor_att_2 = ChannelAttention(64, 2)(tensor)
+  tensor_att_2 = SpatialAttention((7,7))(tensor_att_2)
+  tensor = L.Add()([tensor, tensor_att_2])
   tensor = L.MaxPool2D(2,2)(tensor)
   # tensor = L.BatchNormalization()(tensor)
   # tensor = L.Dropout(0.1)(tensor)
 
-  tensor = CBAM_Block(128, 2, (7,7))(tensor)
+  # tensor = CBAM_Block(128, 2, (7,7))(tensor)
+  tensor = L.Conv2D(256, (5,5), padding="same", activation="relu")(tensor)
+  tensor = L.Conv2D(128, (1,1), padding="same", activation="relu")(tensor)
+  tensor_att_3 = ChannelAttention(128, 2)(tensor)
+  tensor_att_3 = SpatialAttention((7,7))(tensor_att_3)
+  tensor = L.Add()([tensor, tensor_att_3])
   tensor = L.MaxPool2D(2,2)(tensor)
   # tensor = L.BatchNormalization()(tensor)
   # tensor = L.Dropout(0.1)(tensor)
   
-  tensor = CBAM_Block(256, 2, (7,7))(tensor)
+  # tensor = CBAM_Block(256, 2, (5,5))(tensor)
+  tensor = L.Conv2D(512, (5,5), padding="same", activation="relu")(tensor)
+  tensor = L.Conv2D(256, (1,1), padding="same", activation="relu")(tensor)
+  tensor_att_4 = ChannelAttention(256, 2)(tensor)
+  tensor_att_4 = SpatialAttention((5,5))(tensor_att_4)
+  tensor = L.Add()([tensor, tensor_att_4])
   tensor = L.MaxPool2D(2,2)(tensor)
   # tensor = L.BatchNormalization()(tensor)
   # tensor = L.Dropout(0.1)(tensor)
 
-  tensor = CBAM_Block(512, 2, (7,7))(tensor)
+  # tensor = CBAM_Block(256, 2, (3,3))(tensor)
+  tensor = L.Conv2D(512, (5,5), padding="same", activation="relu")(tensor)
+  tensor = L.Conv2D(256, (1,1), padding="same", activation="relu")(tensor)
+  tensor_att_5 = ChannelAttention(256, 2)(tensor)
+  tensor_att_5 = SpatialAttention((3,3))(tensor_att_5)
+  tensor = L.Add()([tensor, tensor_att_5])
   tensor = L.MaxPool2D(2,2)(tensor)
   # tensor = L.BatchNormalization()(tensor)
   # tensor = L.Dropout(0.1)(tensor)
 
   tensor = L.Permute((2, 1, 3))(tensor)
-  tensor = L.Reshape((32, 4 * 512))(tensor)
+  tensor = L.Reshape((32, 4 * 256))(tensor)
 
-  tensor = L.GRU(256, activation="tanh", return_sequences=True)(tensor)
-  tensor = L.GRU(128, activation="tanh", return_sequences=True)(tensor)
+  # tensor = L.GRU(256, activation="tanh", return_sequences=True)(tensor)
+  # tensor = L.GRU(128, activation="tanh", return_sequences=True)(tensor)
   tensor = L.GRU(64, activation="tanh")(tensor)
   tensor = L.Dense(512, activation="relu")(tensor)
   tensor = L.Dense(256, activation="relu")(tensor)
@@ -549,7 +598,79 @@ def cbam_1():
   model = tf.keras.Model(inputs=inputs, outputs=out)
   return model
 
-model = cbam_1()
+def cbam_2():
+  """ No average CBAM
+
+  Returns:
+    tf.keras.Model: The Model
+  """
+  inputs = L.Input(shape=(SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2))
+  tensor = L.Permute((2, 1, 3))(inputs)
+  tensor = L.Resizing(FREQUENCY_LENGTH, 1024)(tensor)
+
+  # tensor = CBAM_Block(32, 2, (5,5))(tensor)
+  tensor = L.Conv2D(64, (5,5), padding="same", activation="relu")(tensor)
+  tensor = L.Conv2D(32, (1,1), padding="same", activation="relu")(tensor)
+  tensor_att_1 = ChannelAttention(32, 2, use_average=False)(tensor)
+  tensor_att_1 = SpatialAttention((5,5), use_average=False)(tensor_att_1)
+  tensor = L.Add()([tensor, tensor_att_1])
+  tensor = L.MaxPool2D(2,2)(tensor)
+
+  # tensor = CBAM_Block(64, 2, (7,7))(tensor)
+  tensor = L.Conv2D(128, (5,5), padding="same", activation="relu")(tensor)
+  tensor = L.Conv2D(64, (1,1), padding="same", activation="relu")(tensor)
+  tensor_att_2 = ChannelAttention(64, 2, use_average=False)(tensor)
+  tensor_att_2 = SpatialAttention((7,7), use_average=False)(tensor_att_2)
+  tensor = L.Add()([tensor, tensor_att_2])
+  tensor = L.MaxPool2D(2,2)(tensor)
+  # tensor = L.BatchNormalization()(tensor)
+  # tensor = L.Dropout(0.1)(tensor)
+
+  # tensor = CBAM_Block(128, 2, (7,7))(tensor)
+  tensor = L.Conv2D(256, (5,5), padding="same", activation="relu")(tensor)
+  tensor = L.Conv2D(128, (1,1), padding="same", activation="relu")(tensor)
+  tensor_att_3 = ChannelAttention(128, 2, use_average=False)(tensor)
+  tensor_att_3 = SpatialAttention((7,7), use_average=False)(tensor_att_3)
+  tensor = L.Add()([tensor, tensor_att_3])
+  tensor = L.MaxPool2D(2,2)(tensor)
+  # tensor = L.BatchNormalization()(tensor)
+  # tensor = L.Dropout(0.1)(tensor)
+  
+  # tensor = CBAM_Block(256, 2, (5,5))(tensor)
+  tensor = L.Conv2D(512, (5,5), padding="same", activation="relu")(tensor)
+  tensor = L.Conv2D(256, (1,1), padding="same", activation="relu")(tensor)
+  tensor_att_4 = ChannelAttention(256, 2, use_average=False)(tensor)
+  tensor_att_4 = SpatialAttention((5,5), use_average=False)(tensor_att_4)
+  tensor = L.Add()([tensor, tensor_att_4])
+  tensor = L.MaxPool2D(2,2)(tensor)
+  # tensor = L.BatchNormalization()(tensor)
+  # tensor = L.Dropout(0.1)(tensor)
+
+  # tensor = CBAM_Block(256, 2, (3,3))(tensor)
+  tensor = L.Conv2D(512, (5,5), padding="same", activation="relu")(tensor)
+  tensor = L.Conv2D(256, (1,1), padding="same", activation="relu")(tensor)
+  tensor_att_5 = ChannelAttention(256, 2, use_average=False)(tensor)
+  tensor_att_5 = SpatialAttention((3,3), use_average=False)(tensor_att_5)
+  tensor = L.Add()([tensor, tensor_att_5])
+  tensor = L.MaxPool2D(2,2)(tensor)
+  # tensor = L.BatchNormalization()(tensor)
+  # tensor = L.Dropout(0.1)(tensor)
+
+  tensor = L.Permute((2, 1, 3))(tensor)
+  tensor = L.Reshape((32, 4 * 256))(tensor)
+
+  # tensor = L.GRU(256, activation="tanh", return_sequences=True)(tensor)
+  # tensor = L.GRU(128, activation="tanh", return_sequences=True)(tensor)
+  tensor = L.LSTM(256, activation="tanh")(tensor)
+  tensor = L.Dense(512, activation="relu")(tensor)
+  tensor = L.Dense(256, activation="relu")(tensor)
+  tensor = L.Dense(64, activation="relu")(tensor)
+  out = L.Dense(2, activation="relu")(tensor)
+
+  model = tf.keras.Model(inputs=inputs, outputs=out)
+  return model
+
+model = cbam_2()
 model.summary()
 sample_input = tf.ones(shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2))
 with tf.device("/CPU:0"):
@@ -692,7 +813,7 @@ layer_list
 
 # %%
 
-test_id = 235
+test_id = 223
 row = test_df.loc[test_id]
 song_id = row["song_id"]
 valence_mean = row["valence_mean"]
@@ -745,21 +866,35 @@ show_color_mesh(tf.transpose(spectrograms[0, :, :, 0], [1,0]))
 
 # %%
 
-f, axarr = plt.subplots(4,4, figsize=(25,15))
-CONVOLUTION_NUMBER_LIST = [0, 5, 8, 31]
+f, axarr = plt.subplots(8,8, figsize=(25,15))
+CONVOLUTION_NUMBER_LIST = [8, 9, 10, 11, 12, 13, 14, 15]
+LAYER_LIST = [10, 11, 12, 13, 16, 17, 18, 19]
 for x, CONVOLUTION_NUMBER in enumerate(CONVOLUTION_NUMBER_LIST):
-  f1 = y_pred_list[3]
+  f1 = y_pred_list[LAYER_LIST[0]]
   plot_spectrogram(tf.transpose(f1[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[0,x])
   axarr[0,x].grid(False)
-  f2 = y_pred_list[4]
+  f2 = y_pred_list[LAYER_LIST[1]]
   plot_spectrogram(tf.transpose(f2[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[1,x])
   axarr[1,x].grid(False)
-  f3 = y_pred_list[5]
+  f3 = y_pred_list[LAYER_LIST[2]]
   plot_spectrogram(tf.transpose(f3[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[2,x])
   axarr[2,x].grid(False)
-  f4 = y_pred_list[6]
+  f4 = y_pred_list[LAYER_LIST[3]]
   plot_spectrogram(tf.transpose(f4[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[3,x])
   axarr[3,x].grid(False)
+  
+  f5 = y_pred_list[LAYER_LIST[4]]
+  plot_spectrogram(tf.transpose(f5[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[4,x])
+  axarr[4,x].grid(False)
+  f6 = y_pred_list[LAYER_LIST[5]]
+  plot_spectrogram(tf.transpose(f6[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[5,x])
+  axarr[5,x].grid(False)
+  f7 = y_pred_list[LAYER_LIST[6]]
+  plot_spectrogram(tf.transpose(f7[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[6,x])
+  axarr[6,x].grid(False)
+  f8 = y_pred_list[LAYER_LIST[7]]
+  plot_spectrogram(tf.transpose(f8[0, : , :, CONVOLUTION_NUMBER], [1,0]).numpy(), axarr[7,x])
+  axarr[7,x].grid(False)
 
 axarr[0,0].set_ylabel("After convolution layer 1")
 axarr[1,0].set_ylabel("After convolution layer 2")
@@ -776,7 +911,7 @@ plt.show()
 # %%
 
 
-f4 = y_pred_list[21]
+f4 = y_pred_list[3]
 
 # %%
 
@@ -788,8 +923,8 @@ f4
 
 # %%
 
-layer_list[-1].weights[0]
-
+w = layer_list[5].weights[0]
+w
 # %%
 
 y_pred_list[-1]
