@@ -22,6 +22,9 @@ python wav_converter.py {src} {dst} {ffmpeg bin path}
 
 ## Reports
 
+### Jan 4, 2022
+* We want to experiement with depth-wise and point-wise (mobile net) convolution to reduce computational cost but still want to keep the same performance.
+
 ### Jan 3, 2022
 * We tried CRNN Model with CBAM architecture with shallow gru (1 layer of gru). first 3 epoch (300 steps of batch_size 16), we train with learning rate 1e-3, next 1e-4. We use mae loss throughout thhe training process.
 

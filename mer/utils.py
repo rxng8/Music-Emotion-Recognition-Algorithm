@@ -133,3 +133,14 @@ def preprocess_waveforms(waveforms, input_len):
   else:
     preprocessed[:waveforms.shape[0], :] = waveforms
   return tf.convert_to_tensor(preprocessed)
+
+def tanh_to_sigmoid(inputs):
+  """ Convert from tanh range to sigmoid range
+
+  Args:
+      inputs (): number of np array of number
+
+  Returns:
+    number or array-like object: changed range object
+  """
+  return (inputs + 1.0) / 2.0
