@@ -56,22 +56,27 @@ Author: Alex Nguyen. Gettysburg College
 ### Dec 31, 2021
 * We tried CRNN Model with deep gru (3 layer of gru)
 
-  ![simple_crnn_3_loss_epoch_10](./docs/simple_crnn_3_loss_epoch_10.png)
+  <!-- ![simple_crnn_3_loss_epoch_10](./docs/simple_crnn_3_loss_epoch_10.png) -->
+  <img src="./docs/simple_crnn_3_loss_epoch_10.png" width="200" />
 
 ### Dec 30, 2021
 * We tried CRNN Model with shallow bidirectional lstm
 
-  ![simple_crnn_loss_2_epoch_7](./docs/simple_crnn_2_loss_epoch_7.png)
-  ![inter_rcnn_2](./docs/inter_rcnn_2.png)
+  <!-- ![simple_crnn_loss_2_epoch_7](./docs/simple_crnn_2_loss_epoch_7.png)
+  ![inter_rcnn_2](./docs/inter_rcnn_2.png) -->
+  <img src="./docs/simple_crnn_2_loss_epoch_7.png" width="200" />
+  <img src="./docs/inter_rcnn_2.png" width="200" />
 
 ### Dec 28, 2021
 * We tried CRNN Model
 
-  ![simple_crnn_loss_epoch_20](./docs/simple_crnn_loss_epoch_20.png)
+  <!-- ![simple_crnn_loss_epoch_20](./docs/simple_crnn_loss_epoch_20.png) -->
+  <img src="./docs/simple_crnn_loss_epoch_20.png" width="200" />
 
 ### Dec 26, 2021
 * We tried testing with Simple CNN Model with 5 Convolution Block (each block consists of a convolution layer with filer size (3,3) and leaky relu activation followed by a convolution layer with filer size (1,1) and leaky relu activation). Each double the number of neurons (64, 128, 256, 512, 1024). Here is the training result after 25 epochs:
- ![simple_conv_loss_epoch_20](./docs/simple_conv_loss_epoch_20.png)
+ <!-- ![simple_conv_loss_epoch_20](./docs/simple_conv_loss_epoch_20.png) -->
+ <img src="./docs/simple_conv_loss_epoch_20.png" width="200" />
 
 ### Dec 25, 2021
 * The Music Information Retrieval (MIR) field has always been challenging because there are not a lot of refined dataset constructed. Especially for Music Emotion Recognition (MER) task, to assess the emotion of the song, one has to collect the songs as input (most of them is not possible because of copyright [\[1\]](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392)). According to Aljanaki et. al [\[1\]](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392), the emotion is subjective to human and language and therefore hard to be determined. There are a lot of emotion labeling scheme such as the emotion adjective wording scheme from Lin et. al [\[2\]](https://doi.org/10.1145/2037676.2037683) or the two dimensional regression scheme from the DEAM dataset developed by Aljanaki et. al [\[1\]](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392) which utilize the two orthorgonal psychology states that are discussed by Russel [\[3\]](https://www.researchgate.net/publication/235361517_A_Circumplex_Model_of_Affect). 
