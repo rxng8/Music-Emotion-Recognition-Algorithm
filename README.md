@@ -9,6 +9,7 @@ Author: Alex Nguyen. Gettysburg College
  * DEAM Dataset: [https://www.kaggle.com/imsparsh/deam-mediaeval-dataset-emotional-analysis-in-music](https://www.kaggle.com/imsparsh/deam-mediaeval-dataset-emotional-analysis-in-music)
 3. Know the benchhmark: [https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392)
 4. VS Code (in order to run the jupyter notebook with python file: VS Code format)
+5. [Anaconda](https://docs.anaconda.com/anaconda/install/index.html): The python environment (for systematic code execution)
 
 ## Project structure
 * `docs`: Containing images for documentation
