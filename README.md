@@ -7,7 +7,8 @@ Author: Alex Nguyen. Gettysburg College
 1. System: Window. Linux and mac not supported (This is because the kernel and libraries in `requirements.txt` are specialized to window)
 2. Dataset:
  * DEAM Dataset: [https://www.kaggle.com/imsparsh/deam-mediaeval-dataset-emotional-analysis-in-music](https://www.kaggle.com/imsparsh/deam-mediaeval-dataset-emotional-analysis-in-music)
-3. VS Code (in order to run the jupyter notebook with python file: VS Code format)
+3. Know the benchhmark: [https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0173392)
+4. VS Code (in order to run the jupyter notebook with python file: VS Code format)
 
 ## Project structure
 * `docs`: Containing images for documentation
