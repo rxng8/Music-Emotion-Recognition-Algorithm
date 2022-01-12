@@ -1,24 +1,49 @@
 # Music Emotion Recognition Algorithm using Deep Learning.
 Author: Alex Nguyen. Gettysburg College
 
-`Introduction Here!`
+`(Introduction to be written)`
+
+## Requirements:
+1. System: Window. Linux and mac not supported (This is because the kernel and libraries in `requirements.txt` are specialized to window)
+2. Dataset:
+ * DEAM Dataset: [https://www.kaggle.com/imsparsh/deam-mediaeval-dataset-emotional-analysis-in-music](https://www.kaggle.com/imsparsh/deam-mediaeval-dataset-emotional-analysis-in-music)
+3. VS Code (in order to run the jupyter notebook with python file: VS Code format)
 
 ## Project structure
-
+* `docs`: Containing images for documentation
+* `mer`: The core libraries for model training and evaluating
+  * `__init__.py`: Package initialization
+  * `const.py`: Constant for the library 
+  * `loss.py`: Loss functions for the deep learning model
+  * `model.py`: Deep learning models
+  * `utils.py`: Utilization methods
+* `main_dynamic.py`: Main jupython notebook (python format) for training with data with per-second label.
+* `main_static.py`: Main jupython notebook (python format) for training with data with whole song label.
+* `requirements.txt`: Dependency file
+* `wav_converter.py`: Script to convert every mp3 file in a folder into wav format.
 
 ## How to run the project
-* convert to wav code: 
 
-```
-cd audio
-mkdir wav
-for %f in (*.mp3) do (ffmpeg -i "%f" -acodec pcm_s16le  -ar 44100  "./wav/%f.wav")
-```
-or
-```
-python wav_converter.py {src} {dst} {ffmpeg bin path}
-# E.g: python wav_converter.py "./dataset/DEAM/audio" "./dataset/DEAM/wav" "C:/Users/Alex Nguyen/Documents/ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe"
-```
+* First, install the required libraries: 
+  ```
+  conda create -n mer
+  conda activate mer
+  pip install -r requirements.txt
+  ```
+* Next, go into one python file `main_dynamic.py` or `main_static.py` and experiment with the VS Code notebook.
+
+## Misc:
+* convert to wav code: 
+  ```
+  cd audio
+  mkdir wav
+  for %f in (*.mp3) do (ffmpeg -i "%f" -acodec pcm_s16le  -ar 44100  "./wav/%f.wav")
+  ```
+  or
+  ```
+  python wav_converter.py {src} {dst} {ffmpeg bin path}
+  # E.g: python wav_converter.py "./dataset/DEAM/audio" "./dataset/DEAM/wav" "C:/Users/Alex Nguyen/Documents/ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe"
+  ```
 
 ## Reports
 
@@ -26,7 +51,7 @@ python wav_converter.py {src} {dst} {ffmpeg bin path}
 * We want to experiement with depth-wise and point-wise (mobile net) convolution to reduce computational cost but still want to keep the same performance.
 
 ### Jan 3, 2022
-* We tried CRNN Model with CBAM architecture with shallow gru (1 layer of gru). first 3 epoch (300 steps of batch_size 16), we train with learning rate 1e-3, next 1e-4. We use mae loss throughout thhe training process.
+* We tried CRNN Model with CBAM architecture with shallow gru (1 layer of gru). first 3 epoch (300 steps of batch_size 16), we train with learning rate 1e-3, next 1e-4. We use mae loss throughout the training process. We achieve the similar loss to other models.
 
 ### Dec 31, 2021
 * We tried CRNN Model with deep gru (3 layer of gru)
