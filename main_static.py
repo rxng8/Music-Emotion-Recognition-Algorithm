@@ -356,7 +356,6 @@ history = train(
   save_history=True
 )
 
-
 # %%
 
 ### MODEL DEBUGGING ###
@@ -670,7 +669,7 @@ def cbam_2():
   model = tf.keras.Model(inputs=inputs, outputs=out)
   return model
 
-model = cbam_2()
+model: tf.keras.Model = cbam_2()
 model.summary()
 sample_input = tf.ones(shape=(BATCH_SIZE, SPECTROGRAM_TIME_LENGTH, FREQUENCY_LENGTH, 2))
 with tf.device("/CPU:0"):
@@ -684,7 +683,19 @@ print(sample_output.shape)
 
 # %%
 
+model.load_weights(weights_path)
 
+# %%
+
+tf.keras.models.save_model(
+  model,
+  "./server/model/my_model",
+  overwrite=True,
+  include_optimizer=True,
+  save_format=None,
+  signatures=None,
+  options=None
+)
 
 
 # %%5
