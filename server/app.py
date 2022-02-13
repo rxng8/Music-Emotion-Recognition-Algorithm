@@ -1,5 +1,6 @@
 import uvicorn
 from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import HTMLResponse
 import tensorflow as tf
 import numpy as np
 
@@ -100,5 +101,19 @@ async def predict_api(file: UploadFile = File(...)):
   # print(prediction)
   return str(prediction)
 
+@app.get("/", response_class=HTMLResponse)
+async def index():
+  return """
+    <html>
+        <head>
+            <title>Chào Linh Nhím</title>
+        </head>
+        <body>
+            <h1>Chào Llinh Nhím nhím nhím cutoeeeeeeeeeee!!!</h1>
+        </body>
+    </html>
+    """
+
 if __name__ == "__main__":
-  uvicorn.run(app, debug=True)
+  # uvicorn.run(app, debug=True)
+  uvicorn.run("app:app", host="0.0.0.0", port=80, reload=True)

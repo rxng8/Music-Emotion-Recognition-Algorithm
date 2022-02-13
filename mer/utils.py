@@ -144,3 +144,40 @@ def tanh_to_sigmoid(inputs):
     number or array-like object: changed range object
   """
   return (inputs + 1.0) / 2.0
+
+def get_CAM(model, img, actual_label, loss_func, layer_name='block5_conv3'):
+
+  model_grad = tf.keras.Model(model.inputs, 
+                      [model.get_layer(layer_name).output, model.output])
+  
+  with tf.GradientTape() as tape:
+      conv_output_values, predictions = model_grad(img)
+
+      # watch the conv_output_values
+      tape.watch(conv_output_values)
+      
+      # Calculate loss as in the loss func
+      try:
+        loss, _ = loss_func(actual_label, predictions)
+      except:
+        loss = loss_func(actual_label, predictions)
+      print(f"Loss: {loss}")
+  
+  # get the gradient of the loss with respect to the outputs of the last conv layer
+  grads_values = tape.gradient(loss, conv_output_values)
+  grads_values = tf.reduce_mean(grads_values, axis=(0,1,2))
+  
+  conv_output_values = np.squeeze(conv_output_values.numpy())
+  grads_values = grads_values.numpy()
+  
+  # weight the convolution outputs with the computed gradients
+  for i in range(conv_output_values.shape[-1]): 
+      conv_output_values[:,:,i] *= grads_values[i]
+  heatmap = np.mean(conv_output_values, axis=-1)
+  
+  heatmap = np.maximum(heatmap, 0)
+  heatmap /= heatmap.max()
+  
+  del model_grad, conv_output_values, grads_values, loss
+  
+  return heatmap

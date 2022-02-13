@@ -12,4 +12,8 @@
   pip install -r requirements.txt
   python app.py
   ```
+3. Or to start a deployment server, run:
+```
+uvicorn app:app --host 0.0.0.0 --port 80
+```
 
