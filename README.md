@@ -1,5 +1,5 @@
 # Music Emotion Recognition Algorithm using Deep Learning.
-Author: Alex Nguyen. Gettysburg College
+Author: Viet Dung Nguyen. Gettysburg College
 
 `(Introduction to be written)`
 
